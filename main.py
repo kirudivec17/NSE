@@ -1,4 +1,4 @@
-# MAIN - FINAL VERSION - Paper + Risk + Upstox + Strategy Sab Ek Saath
+# MAIN - FINAL VERSION - Fixed - Ek Symbol Pe Ek Hi Order
 
 import config
 import time
@@ -27,17 +27,16 @@ def main():
     broker = UpstoxBroker()
     if config.MODE == "REAL":
         if not broker.login():
-            print("Broker Login Fail - REAL Mode Me Bina Login Ke Nahi Chalega!")
+            print("Broker Login Fail!")
             return
     else:
-        print("PAPER MODE - Broker Login Ki Zarurat Nahi - Nakli Order Chalega")
+        print("PAPER MODE - Broker Login Ki Zarurat Nahi")
         broker.login()
 
     strategy = Strategy()
     paper = PaperEngine()
 
-    print("\nSystem Ready Hai - Trading Shuru...")
-    print("Rokne ke liye Ctrl + C Dabao\n")
+    print("\nSystem Ready Hai - Trading Shuru...\n")
 
     try:
         round_no = 1
@@ -45,10 +44,15 @@ def main():
             print(f"--- Round {round_no} ---")
 
             if not risk.can_trade():
-                print("Risk Limit Cross - System Band Kar Raha Hu!")
+                print("Risk Limit Cross - System Band!")
                 break
 
             for symbol in config.SYMBOLS:
+                # Agar is symbol ka order pehle se khula hai - To naya signal mat lo
+                if paper.has_open_order(symbol):
+                    print(f"{symbol} -> Pehle se OPEN hai - Wait kar rahe hai exit ke liye")
+                    continue
+
                 chain = broker.get_option_chain(symbol)
                 signal = strategy.get_signal(symbol, chain)
                 print(f"{symbol} -> Signal: {signal} | Mode: {strategy.get_mode()}")
@@ -57,17 +61,25 @@ def main():
                     strike = 25000
                     qty = 25
                     price = 100
-                    order_id = paper.place_order(symbol, signal, strike, qty, price)
-                elif signal == "NO_TRADE":
-                    print(f"{symbol} me Abhi Trade Nahi Hai - Wait Kar Raha Hu...")
+                    paper.place_order(symbol, signal, strike, qty, price)
 
-            print(f"Balance: {risk.balance} | Day PnL: {risk.day_pnl}")
+            # Test ke liye - Har 3rd round pe saare open order band karke PnL dekho
+            # Asli me ye exit Stoploss / Target pe hoga
+            if round_no % 3 == 0:
+                for o in list(paper.get_open_orders()):
+                    # SELL wale me 90 pe exit = (100-90)*25 = +250 profit
+                    # BUY wale me 110 pe exit = (110-100)*25 = +250 profit
+                    exit_price = 90 if o["side"] == "SELL" else 110
+                    pnl = paper.exit_order(o["id"], exit_price)
+                    risk.update_pnl(pnl)
+
+            print(f"Balance: {risk.balance} | Day PnL: {risk.day_pnl} | Open: {len(paper.get_open_orders())}")
             print("5 sec wait...\n")
             time.sleep(5)
             round_no += 1
 
     except KeyboardInterrupt:
-        print("\nTumne Roka - System Band Kar Raha Hu...")
+        print("\nTumne Roka - System Band...")
         print(f"Final Balance: {risk.balance}")
         print(f"Total PnL: {risk.total_pnl}")
         print(f"Total Paper Orders: {len(paper.orders)}")
