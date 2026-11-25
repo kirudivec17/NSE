@@ -5,8 +5,19 @@ class PaperEngine:
         self.orders = []
         self.order_id = 1000
 
+    def has_open_order(self, symbol):
+        # Is symbol ka koi order pehle se khula hai kya?
+        for o in self.orders:
+            if o["symbol"] == symbol and o["status"] == "PAPER - OPEN":
+                return True
+        return False
+
     def place_order(self, symbol, signal, strike, qty, price):
-        # signal: BUY_CE / BUY_PE / SELL_CE / SELL_PE
+        # Pehle check karo - Agar pehle se khula hai to naya mat lagao
+        if self.has_open_order(symbol):
+            print(f"SKIP: {symbol} ka order pehle se khula hai - Naya nahi lagayenge")
+            return None
+
         self.order_id += 1
 
         if signal.startswith("BUY"):
@@ -46,7 +57,6 @@ class PaperEngine:
                 o["pnl"] = pnl
                 print(f"PAPER EXIT: ID {order_id} {o['side']} {o['type']} @ {exit_price} | PnL: {pnl}")
                 return pnl
-        print(f"Order {order_id} nahi mila ya pehle se band hai!")
         return 0
 
     def get_open_orders(self):
