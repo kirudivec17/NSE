@@ -11,12 +11,10 @@ class RiskManager:
         self.shutdown = False
 
     def can_trade(self):
-        # 7000 pe aate hi band
         if self.balance <= config.SHUTDOWN_BALANCE:
             self.shutdown = True
             print(f"SHUTDOWN! Balance {self.balance} - 30% Loss Ho Gaya!")
             return False
-        # Din ka 1000 loss ho gaya to band
         if self.day_pnl <= -config.MAX_LOSS_PER_DAY:
             print(f"Daily Loss Limit! Aaj Band!")
             return False
