@@ -1,4 +1,5 @@
 # MAIN - REAL PAPER - Koi Fake Price / Fake Exit Nahi
+# Market Band Ho Toh NO TRADE - Sirf 9:15 - 3:30 Me Chalega
 
 import config
 import time
@@ -29,7 +30,8 @@ def main():
     strategy = Strategy()
     paper = PaperEngine()
 
-    print("\nSystem Ready Hai - Sirf REAL Data Pe Chalega...\n")
+    print("\nSystem Ready Hai - Sirf REAL Data Pe Chalega...")
+    print("Market Band Hai Toh Naya Trade Nahi Hoga - Sirf Hold Dikhayega\n")
 
     try:
         round_no = 1
@@ -46,8 +48,20 @@ def main():
                     print(f"{symbol} - Data nahi mila, skip - Fake trade nahi karenge")
                     continue
 
-                # 2. Agar order khula hai to uska LIVE price check karo - Exit ke liye
+                # 2. Market band hai toh NAYA order mat lo
+                # Lekin purana khula hua order hai toh usko check karte raho
+                is_open = chain.get("market_open", True)
                 open_orders = [o for o in paper.get_open_orders() if o["symbol"] == symbol]
+
+                if is_open == False and not open_orders:
+                    print(f"{symbol} - Market BAND hai - Naya Trade Nahi Karenge - Kal 9:15 Pe Chalayenge")
+                    continue
+
+                if is_open == False and open_orders:
+                    print(f"{symbol} - Market BAND hai - Naya Trade Nahi, Bas Purana Order Dekh Rahe Hai")
+                    # Neeche exit check pe jane do, naya order mat lo
+
+                # 3. Agar order khula hai to uska LIVE price check karo - Exit ke liye
                 if open_orders:
                     o = open_orders[0]
                     # Us option ka asli live price - CE hai to CE price, PE hai to PE price
@@ -60,7 +74,11 @@ def main():
                         print(f"{symbol} - Abhi Target / SL nahi aaya - Hold")
                     continue
 
-                # 3. Koi order nahi khula to naya signal lo
+                # 4. Market band hai toh yaha tak aane ke baad bhi naya order mat lo
+                if is_open == False:
+                    continue
+
+                # 5. Koi order nahi khula + Market khula hai to naya signal lo
                 signal = strategy.get_signal(symbol, chain)
                 print(f"{symbol} -> Signal: {signal} | Mode: {strategy.get_mode()}")
 
@@ -72,6 +90,8 @@ def main():
                         print(f"{symbol} - Asli price 0 hai - Trade nahi karenge")
                         continue
                     paper.place_order(symbol, signal, real_strike, 25, real_price)
+                else:
+                    print(f"{symbol} - Koi Signal Nahi - Wait Kar Rahe Hai")
 
             print(f"Balance: {risk.balance} | Day PnL: {risk.day_pnl} | Open: {len(paper.get_open_orders())}")
             print("10 sec wait - Real price ke liye...\n")
@@ -83,6 +103,9 @@ def main():
         print(f"Final Balance: {risk.balance}")
         print(f"Total PnL: {risk.total_pnl}")
         print(f"Total Paper Orders: {len(paper.orders)}")
+        # Saare khule order dikhao
+        for o in paper.get_open_orders():
+            print(f"OPEN: {o['symbol']} {o['side']} {o['type']} @ {o['entry_price']} Target {o['target']} SL {o['stoploss']}")
 
 if __name__ == "__main__":
     main()
