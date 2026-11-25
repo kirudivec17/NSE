@@ -1,8 +1,8 @@
 # MAIN - Yaha Se System Chalega
 
 import config
-from risk.risk_manager import RiskManager
-from strategy.strategy import Strategy
+from risk_manager import RiskManager
+from strategy import Strategy
 
 print("=== FNO Paper Trading System ON ===")
 print(f"Mode: {config.MODE}")
@@ -18,4 +18,3 @@ if not risk.can_trade():
     print("System Band Hai - Risk Limit Cross!")
 else:
     print("System Ready Hai - Strategy Signal Ka Wait Kar Raha Hai...")
-    # Yaha se loop chalega - Price aayega -> Signal aayega -> Paper Trade hoga
