@@ -1,5 +1,4 @@
-# UPSTOX BROKER - REAL DATA via Yahoo Finance - NSE Block Ka Jugaad
-# NSE Colab ko block karta hai, Yahoo nahi karta - Price 100% Real hai
+# UPSTOX BROKER - REAL DATA via Yahoo - Market Band Ho Toh NO TRADE
 
 from broker import BaseBroker
 import os
@@ -10,16 +9,10 @@ class UpstoxBroker(BaseBroker):
         self.api_key = os.getenv("UPSTOX_API_KEY")
         self.access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
         self.logged_in = False
-        self.prev_spot = {}  # Pichla price - Move nikalne ke liye
         self.ticker_map = {
             "NIFTY": "^NSEI",
             "BANKNIFTY": "^NSEBANK",
             "SENSEX": "^BSESN",
-        }
-        self.strike_map = {
-            "NIFTY": 25000,
-            "BANKNIFTY": 56000,
-            "SENSEX": 82000,
         }
 
     def login(self):
@@ -29,23 +22,19 @@ class UpstoxBroker(BaseBroker):
             self.logged_in = True
             return True
         except Exception as e:
-            print(f"Yahoo Connection Fail: {e} - pip install yfinance karo")
+            print(f"Yahoo Connection Fail: {e}")
             return False
 
     def black_scholes_greeks(self, spot, strike, days=2):
-        # Option ka asli price + Greeks - Real Spot se calculate hoga
-        # Ye formula hi market use karta hai - Fake nahi, Math hai
         import math
         try:
-            # Market ka asli interest rate + volatility - NIFTY ka average
             r = 0.065
-            iv = 0.13  # 13% - NIFTY ka real average IV
+            iv = 0.13
             T = max(days / 365.0, 0.001)
             if spot <= 0 or strike <= 0:
-                return 0, 0, 0, 0
+                return 0, 0, 0, 0, 0
             d1 = (math.log(spot / strike) + (r + 0.5 * iv * iv) * T) / (iv * math.sqrt(T))
             d2 = d1 - iv * math.sqrt(T)
-            # Normal distribution
             def N(x):
                 return 0.5 * (1 + math.erf(x / math.sqrt(2)))
             def n(x):
@@ -54,37 +43,43 @@ class UpstoxBroker(BaseBroker):
             pe_price = strike * math.exp(-r * T) * N(-d2) - spot * N(-d1)
             delta = N(d1)
             gamma = n(d1) / (spot * iv * math.sqrt(T))
-            theta = -(spot * n(d1) * iv) / (2 * math.sqrt(T)) - r * strike * math.exp(-r * T) * N(d2)
-            # Theta per day me
-            theta = theta / 365.0
+            theta = (-(spot * n(d1) * iv) / (2 * math.sqrt(T)) - r * strike * math.exp(-r * T) * N(d2)) / 365.0
             return round(ce_price, 2), round(pe_price, 2), round(delta, 4), round(gamma, 5), round(theta, 2)
-        except Exception as e:
-            print(f"Greeks Calc Fail: {e}")
+        except Exception:
             return 0, 0, 0, 0, 0
 
     def get_option_chain(self, symbol):
         try:
             import yfinance as yf
+            from datetime import datetime
             yahoo_symbol = self.ticker_map.get(symbol, "^NSEI")
             ticker = yf.Ticker(yahoo_symbol)
-            hist = ticker.history(period="2d", interval="1m")
+
+            # AAJ ka hi data lo - 1 din ka
+            hist = ticker.history(period="1d", interval="1m")
             if hist is None or hist.empty:
-                print(f"{symbol} - Yahoo se data nahi mila - Market band ho sakta hai")
+                print(f"{symbol} - Aaj ka data nahi mila - Market band hai")
                 return None
 
             spot = float(hist["Close"].iloc[-1])
-            prev_close = float(hist["Close"].iloc[0]) if len(hist) > 1 else spot
-            # Market kitna hila - Asli %
-            move = ((spot - prev_close) / prev_close * 100) if prev_close else 0.0
+            # AAJ ka open - Aaj ka sahi Move
+            today_open = float(hist["Open"].iloc[0])
+            move = ((spot - today_open) / today_open * 100) if today_open else 0.0
 
-            # ATM Strike - Asli Spot ke sabse paas wala
-            # NIFTY 50 ke gap me, BANKNIFTY 100 ke gap me
+            # Market band hai kya? - Aakhri candle kitni purani hai?
+            last_time = hist.index[-1]
+            now = datetime.now(last_time.tzinfo) if last_time.tzinfo else datetime.now()
+            diff_min = (now - last_time).total_seconds() / 60
+            # Agar 15 min se koi naya candle nahi aaya to market band samjho
+            is_market_open = diff_min < 15
+            # Subah 9:15 se 3:30 ke beech hi market khula hota hai
+            # Raat me ye False hoga
+
             step = 50 if symbol == "NIFTY" else 100
             strike = round(spot / step) * step
-
             ce_price, pe_price, delta, gamma, theta = self.black_scholes_greeks(spot, strike)
 
-            print(f"{symbol} REAL Spot: {round(spot,2)} | Move: {round(move,3)}% | ATM: {strike} | CE: {ce_price} | PE: {pe_price} | Delta: {delta} Gamma: {gamma} Theta: {theta}")
+            print(f"{symbol} REAL Spot: {round(spot,2)} | Aaj Move: {round(move,3)}% | ATM: {strike} | CE: {ce_price} | PE: {pe_price} | Market Open: {is_market_open}")
 
             return {
                 "symbol": symbol,
@@ -98,6 +93,7 @@ class UpstoxBroker(BaseBroker):
                 "delta": delta,
                 "gamma": gamma,
                 "theta": theta,
+                "market_open": is_market_open,
             }
         except Exception as e:
             print(f"{symbol} Option Chain Fail: {e}")
