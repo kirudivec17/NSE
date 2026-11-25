@@ -1,0 +1,22 @@
+# CONFIG - Yaha Se Poora System Control Hoga
+
+# MODE - PAPER ya REAL
+# Abhi PAPER hi rakho - Real paisa nahi jayega
+MODE = "PAPER"  # "PAPER" ya "REAL"
+
+# CAPITAL - RISK
+CAPITAL = 10000
+MAX_LOSS_PERCENT = 30  # 30% = 3000
+MAX_LOSS_AMOUNT = CAPITAL * MAX_LOSS_PERCENT / 100  # 3000
+SHUTDOWN_BALANCE = CAPITAL - MAX_LOSS_AMOUNT  # 7000 - Yaha Aate Hi Band
+
+# PER TRADE / DAILY
+MAX_LOSS_PER_TRADE = 500
+MAX_LOSS_PER_DAY = 1000
+
+# SYMBOLS - Sirf F&O Index
+SYMBOLS = ["NIFTY", "BANKNIFTY", "SENSEX"]
+
+# BROKER - Kaunsa Broker Lagana Hai
+# "TRADEJINI" / "ZERODHA" / "ANGEL" - Baad me badal dena
+BROKER_NAME = "TRADEJINI"
