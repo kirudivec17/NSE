@@ -19,4 +19,4 @@ SYMBOLS = ["NIFTY", "BANKNIFTY", "SENSEX"]
 
 # BROKER - Kaunsa Broker Lagana Hai
 # "TRADEJINI" / "ZERODHA" / "ANGEL" - Baad me badal dena
-BROKER_NAME = "TRADEJINI"
+BROKER_NAME = "UPSTOX"
