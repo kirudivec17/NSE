@@ -1,117 +1,91 @@
-# APP.PY - TUMHARA PVT FNO APP - Broker API Daalo Aur Connect Karo
-# Chalane Ke Liye: streamlit run app.py
+# APP.PY V2 - UPSTOX REAL DATA - Yahoo Band
+# Chalane ke liye: streamlit run app.py
 
 import streamlit as st
+import requests
 import time
-import yfinance as yf
-import math
-import os
 
 st.set_page_config(page_title="FNO Pvt App", layout="wide")
-st.title("🔥 FNO PAPER TRADING - PVT APP")
-st.write("Broker API Daalo - Connect Karo - Paper Trading Shuru Karo")
+st.title("🔥 FNO PAPER TRADING - PVT APP - UPSTOX REAL")
 
-# --- SIDEBAR - BROKER CONNECT ---
+# --- SIDEBAR ---
 st.sidebar.header("🔑 Broker Connect")
-broker = st.sidebar.selectbox("Broker Chuno", ["UPSTOX", "ZERODHA", "ANGEL ONE", "DHAN"])
-api_key = st.sidebar.text_input("API Key Daalo", type="password", placeholder="Upstox API Key")
-api_secret = st.sidebar.text_input("API Secret Daalo", type="password", placeholder="Upstox API Secret")
-access_token = st.sidebar.text_input("Access Token Daalo", type="password", placeholder="Upstox Access Token")
+broker = st.sidebar.selectbox("Broker", ["UPSTOX"])
+api_key = st.sidebar.text_input("API Key", type="password")
+api_secret = st.sidebar.text_input("API Secret", type="password")
+access_token = st.sidebar.text_input("Access Token - Roz Naya", type="password")
 
-mode = st.sidebar.radio("Mode", ["PAPER - Nakli Paisa, Asli Price", "LIVE - Asli Paisa (Abhi Band Hai)"])
+mode = st.sidebar.radio("Mode", ["PAPER - Nakli Paisa, Asli Price"])
 capital = st.sidebar.number_input("Capital", value=10000)
-symbols = st.sidebar.multiselect("Symbols", ["NIFTY", "BANKNIFTY", "SENSEX"], default=["NIFTY", "BANKNIFTY", "SENSEX"])
+symbols = st.sidebar.multiselect("Symbols", ["NIFTY", "BANKNIFTY", "SENSEX"], default=["NIFTY"])
 
-if st.sidebar.button("🔌 Broker Connect Karo"):
-    if not api_key:
-        st.sidebar.warning("Pehle API Key Daalo Boss! Bina API Ke Connect Nahi Hoga")
+if st.sidebar.button("🔌 Connect Karo"):
+    if not access_token:
+        st.sidebar.warning("Pehle Access Token Daalo!")
     else:
-        # Yaha Asli Upstox Login Hoga - Abhi Ke Liye Yahoo Se Test Kar Rahe Hai
-        st.session_state["connected"] = True
-        st.session_state["broker"] = broker
-        st.sidebar.success(f"{broker} Connected! ✅ - Abhi Yahoo Data Se Chal Raha Hai, Upstox API Baad Me Lagega")
-        os.environ["UPSTOX_API_KEY"] = api_key
-        os.environ["UPSTOX_ACCESS_TOKEN"] = access_token
-
-if "connected" not in st.session_state:
-    st.session_state["connected"] = False
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        r = requests.get("https://api.upstox.com/v2/user/profile", headers=headers)
+        if r.status_code == 200:
+            data = r.json().get("data", {})
+            st.session_state["connected"] = True
+            st.session_state["token"] = access_token
+            st.session_state["user"] = data.get("user_name", "User")
+            st.sidebar.success(f"Connected! ✅ Welcome {data.get('user_name','')}")
+        else:
+            st.sidebar.error(f"Token Galat / Expire Hai! Code: {r.status_code} - Naya Token Banao")
 
 if not st.session_state.get("connected"):
-    st.info("👈 Pehle Left Side Me Broker Ka API Daal Ke Connect Karo")
+    st.info("👈 Pehle Left Me API Key + Access Token Daal Ke Connect Karo")
     st.stop()
 
-# --- LIVE DATA FUNCTION ---
-def get_live(symbol):
-    ticker_map = {"NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN"}
-    ticker = yf.Ticker(ticker_map[symbol])
-    hist = ticker.history(period="1d", interval="1m")
-    if hist.empty:
+st.success(f"Welcome {st.session_state.get('user')} - Upstox Connected ✅ | Mode: {mode}")
+
+# --- UPSTOX REAL DATA ---
+def get_upstox_quote(instrument_key):
+    headers = {"Authorization": f"Bearer {st.session_state['token']}", "Accept": "application/json"}
+    url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={instrument_key}"
+    r = requests.get(url, headers=headers, timeout=10)
+    if r.status_code != 200:
         return None
-    spot = float(hist["Close"].iloc[-1])
-    open_price = float(hist["Open"].iloc[0])
-    move = ((spot - open_price) / open_price * 100) if open_price else 0
-    # Black-Scholes se CE/PE Price
-    def bs(spot, strike):
-        r, iv, T = 0.065, 0.13, 2/365
-        d1 = (math.log(spot/strike) + (r + 0.5*iv*iv)*T) / (iv*math.sqrt(T))
-        d2 = d1 - iv*math.sqrt(T)
-        def N(x): return 0.5*(1+math.erf(x/math.sqrt(2)))
-        ce = spot*N(d1) - strike*math.exp(-r*T)*N(d2)
-        pe = strike*math.exp(-r*T)*N(-d2) - spot*N(-d1)
-        return round(ce,2), round(pe,2)
-    step = 50 if symbol == "NIFTY" else 100
-    strike = round(spot/step)*step
-    ce, pe = bs(spot, strike)
-    return {"spot": round(spot,2), "move": round(move,3), "strike": strike, "ce": ce, "pe": pe}
+    return r.json().get("data", {}).get(instrument_key, {})
+
+instrument_map = {
+    "NIFTY": "NSE_INDEX%7CNifty%2050",
+    "BANKNIFTY": "NSE_INDEX%7CNifty%20Bank",
+    "SENSEX": "BSE_INDEX%7CSENSEX",
+}
 
 # --- DASHBOARD ---
-st.subheader(f"Broker: {st.session_state.get('broker')} | Mode: {mode} | Capital: {capital}")
-
 if "balance" not in st.session_state:
     st.session_state["balance"] = capital
     st.session_state["orders"] = []
-    st.session_state["running"] = False
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Balance", st.session_state["balance"])
 col2.metric("Open Orders", len([o for o in st.session_state["orders"] if o["status"]=="OPEN"]))
 col3.metric("Total PnL", st.session_state["balance"] - capital)
 
-start = st.button("▶️ Trading START Karo")
-stop = st.button("⏹️ Trading STOP Karo")
-if start:
-    st.session_state["running"] = True
-if stop:
-    st.session_state["running"] = False
-
-placeholder = st.empty()
-
-if st.session_state["running"]:
-    st.success("Trading Chal Rahi Hai - Live Price Har 10 Sec Me Update Hoga")
-    # Ek Round Chalao
-    for symbol in symbols:
-        data = get_live(symbol)
-        if data:
-            st.write(f"**{symbol}** | Spot: {data['spot']} | Move: {data['move']}% | ATM: {data['strike']} | CE: {data['ce']} | PE: {data['pe']}")
-            # Signal - Pichle Wala Logic
-            if data['move'] > 0.3:
-                signal = "BUY_CE"
-            elif data['move'] < -0.3:
-                signal = "BUY_PE"
+if st.button("▶️ Live Price Dekho - Upstox Se"):
+    for sym in symbols:
+        q = get_upstox_quote(instrument_map[sym])
+        if q:
+            ltp = q.get("last_price")
+            open_p = q.get("ohlc", {}).get("open", ltp)
+            move = ((ltp - open_p)/open_p*100) if open_p else 0
+            st.write(f"**{sym}** | REAL LTP: {ltp} | Open: {open_p} | Aaj Move: {round(move,3)}%")
+            if move > 0.3:
+                st.write(f"→ Signal: BUY_CE")
+            elif move < -0.3:
+                st.write(f"→ Signal: BUY_PE")
             else:
-                signal = "SELL_CE"
-            st.write(f"→ Signal: {signal}")
-    st.info("Abhi 1 Round Dikhaya Hai - Auto Loop Ke Liye Neeche Wala Tarika Dekho - Streamlit Me Auto Refresh Lagana Padega")
-else:
-    st.warning("Trading Band Hai - START Dabao")
+                st.write(f"→ Signal: SELL_CE")
+        else:
+            st.error(f"{sym} - Data Nahi Mila - Token Check Karo")
 
 st.subheader("📋 Orders")
 if st.session_state["orders"]:
     st.table(st.session_state["orders"])
 else:
-    st.write("Abhi Koi Order Nahi Hai")
+    st.write("Abhi Koi Order Nahi Hai - Pehle Live Price Dekho")
 
-st.subheader("❓ Agla Step Kya Hai?")
-st.write("1. Upstox Developer Portal Pe Jao - https://api.upstox.com - App Banao - API Key Lo")
-st.write("2. Yaha API Key Daalo - Connect Karo")
-st.write("3. Fir Main Upstox Ka Asli Data Wala Code Is App Me Jod Dunga - Yahoo Hat Jayega")
+st.info("Agla Step: Isme Paper Order + Target/SL + Auto Loop Jodenge - Pehle Ye Wala Chala Ke Dekho Token Kaam Kar Raha Hai Ya Nahi")
