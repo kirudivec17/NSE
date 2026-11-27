@@ -1,11 +1,23 @@
-# APP.PY V6 - FINAL AUTO - ANGEL ONE BLUE - SECRET SAVE + NIFTY/SENSEX FIX
-# Purana mita ke ye POORA paste karo - Tukda mat daalna
+# APP.PY V7 - FINAL AUTO - IST TIME FIX + SECRET SAVE + NIFTY/SENSEX FIX
+# Purana mita ke ye POORA paste karo
 
 import streamlit as st
 import requests
 import math
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+
+try:
+    from zoneinfo import ZoneInfo
+    IST = ZoneInfo("Asia/Kolkata")
+except:
+    IST = None
+
+def now_ist():
+    if IST is not None:
+        return datetime.now(IST)
+    # Backup - Agar ZoneInfo Na Chale Toh +5:30 Add Kar Do
+    return datetime.now() + timedelta(hours=5, minutes=30)
 
 st.set_page_config(page_title="FNO AUTO - Angel Style", layout="wide", initial_sidebar_state="collapsed")
 
@@ -40,16 +52,15 @@ if "balance" not in st.session_state:
     st.session_state["user"] = ""
     st.session_state["auto_on"] = False
     st.session_state["logs"] = []
-    # FIX 1 - Har Symbol Ka Alag Chain - NIFTY me NIFTY, SENSEX me SENSEX
     st.session_state["all_chains"] = {"NIFTY": None, "BANKNIFTY": None, "SENSEX": None}
     st.session_state["all_ltps"] = {"NIFTY": 0, "BANKNIFTY": 0, "SENSEX": 0}
 
 def log(msg):
-    t = datetime.now().strftime("%H:%M:%S")
-    st.session_state["logs"].insert(0, f"[{t}] {msg}")
+    t = now_ist().strftime("%H:%M:%S")
+    st.session_state["logs"].insert(0, f"[{t} IST] {msg}")
     st.session_state["logs"] = st.session_state["logs"][:30]
 
-# ============ SECRETS SE API KEY / SECRET - BAR BAR NAHI DAALNA PADEGA ============
+# ============ SECRETS SE API KEY / SECRET ============
 try:
     SAVED_API_KEY = st.secrets.get("API_KEY", "")
     SAVED_API_SECRET = st.secrets.get("API_SECRET", "")
@@ -61,7 +72,7 @@ except:
 st.markdown("""
 <div class="angel-header">
 <h2>🤖 AUTO FNO - Options Trading Made Intuitive</h2>
-<p>Delta • Gamma • Theta Auto Strategy • VPS Pe Hamesha ON • NIFTY / BANKNIFTY / SENSEX Alag-Alag</p>
+<p>Delta • Gamma • Theta Auto Strategy • VPS Pe Hamesha ON • IST Time Fix • NIFTY / BANKNIFTY / SENSEX Alag-Alag</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -73,8 +84,7 @@ with st.expander("🔑 Broker Connect - Sirf Token Daalo - API Key / Secret Save
     if SAVED_API_KEY:
         st.caption(f"✅ API Key Save Hai: {SAVED_API_KEY[:4]}**** | API Secret Save Hai: {SAVED_API_SECRET[:4]}**** | Tumhe Nahi Daalna Hai!")
     else:
-        st.warning("⚠️ Secrets Me API_KEY / API_SECRET Nahi Daala Hai! Streamlit -> Manage app -> Settings -> Secrets Me Daalo! Tab Tak Neeche Wale Box Me Daal Ke Chala Sakte Ho - Lekin Secrets Me Daal Dena!")
-        # Agar secrets me nahi hai toh manual bhi daal sakte ho - backup
+        st.warning("⚠️ Secrets Me API_KEY / API_SECRET Nahi Daala Hai! Streamlit -> Manage app -> Settings -> Secrets Me Daalo!")
         manual_key = st.text_input("Agar Secrets Me Nahi Hai Toh Yaha Daalo - API Key", type="password")
         manual_secret = st.text_input("Agar Secrets Me Nahi Hai Toh Yaha Daalo - API Secret", type="password")
         if manual_key:
@@ -82,23 +92,23 @@ with st.expander("🔑 Broker Connect - Sirf Token Daalo - API Key / Secret Save
         if manual_secret:
             SAVED_API_SECRET = manual_secret
 
-    access_token = st.text_input("Access Token - Roz Subah 7 Baje Naya - Sirf Ye Daalo", type="password", placeholder="Yaha Roz Naya Token Paste Karo")
+    access_token = st.text_input("Access Token - Roz Subah 7 Baje Naya - Sirf Ye Daalo - VPS Ke Andar Hi Copy-Paste Karo", type="password", placeholder="Yaha Roz Naya Token Paste Karo - Mobile Se Mat Bhejo")
     if st.button("🔌 Connect Karo", use_container_width=True):
         if not access_token:
             st.warning("Pehle Token Daalo Boss! Sirf Token Daalna Hai!")
         else:
-            h = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+            h = {"Authorization": f"Bearer {access_token.strip()}", "Accept": "application/json"}
             try:
                 r = requests.get("https://api.upstox.com/v2/user/profile", headers=h, timeout=10)
                 if r.status_code == 200:
                     d = r.json().get("data", {})
                     st.session_state["connected"] = True
-                    st.session_state["token"] = access_token
+                    st.session_state["token"] = access_token.strip()
                     st.session_state["user"] = d.get("user_name", "User")
                     st.success(f"Connected ✅ Welcome {st.session_state['user']}")
                     st.rerun()
                 else:
-                    st.error(f"Token Expire - Code {r.status_code} - Naya Banao")
+                    st.error(f"Token Expire - Code {r.status_code} - Naya Banao - VPS Ke Andar Hi Copy Karo")
             except Exception as e:
                 st.error(f"Error: {e}")
 
@@ -174,7 +184,8 @@ def greeks(spot, strike, is_ce=True, days=2):
         return 0, 0, 0, 0
 
 def is_market_open():
-    now = datetime.now()
+    # FIX - India Ka Time - Streamlit Cloud Ka Time London Ka Hai Isliye Pehle CLOSED Dikh Raha Tha
+    now = now_ist()
     if now.weekday() >= 5:
         return False
     t = now.time()
@@ -200,13 +211,14 @@ c1, c2, c3, c4 = st.columns(4)
 c1.metric("Balance", f"₹{st.session_state['balance']:.2f}")
 c2.metric("Day P&L", f"₹{total_pnl:.2f}")
 c3.metric("Open Orders", len([o for o in st.session_state["orders"] if o["status"]=="OPEN"]))
+# IST Time Dikhao - Taaki Pata Chale Time Sahi Hai
+now_show = now_ist()
 c4.metric("Market", "OPEN 🟢" if is_market_open() else "CLOSED 🔴")
-st.caption(f"Welcome {st.session_state['user']} | Capital ₹{capital} | Max Per Trade ₹{max_per_trade} | Auto Har {refresh_sec} Sec Me Scan Karega")
+st.caption(f"Welcome {st.session_state['user']} | IST Time: {now_show.strftime('%d-%m-%Y %H:%M:%S')} | Capital ₹{capital} | Max Per Trade ₹{max_per_trade} | Auto Har {refresh_sec} Sec Me Scan Karega")
 
 # ============ AUTO LOOP ============
 if st.session_state["auto_on"]:
-    st.info(f"🤖 AUTO ON Hai - Har {refresh_sec} Sec Me NIFTY / BANKNIFTY / SENSEX Alag-Alag Scan Ho Raha Hai - VPS Pe Band Mat Karna!")
-    # 1. Open Orders Ka Profit Book - Delta Gamma Theta Se
+    st.info(f"🤖 AUTO ON Hai - Har {refresh_sec} Sec Me NIFTY / BANKNIFTY / SENSEX Alag-Alag Scan Ho Raha Hai - VPS Pe Band Mat Karna! IST Time: {now_ist().strftime('%H:%M:%S')}")
     for o in list(st.session_state["orders"]):
         if o["status"] != "OPEN":
             continue
@@ -249,7 +261,6 @@ if st.session_state["auto_on"]:
             log(f"✅ SQUARE OFF {o['symbol']} {o['strike']} {o['signal']} PnL ₹{pnl:.2f} - {exit_reason}")
             st.success(f"Auto Square Off! {o['symbol']} PnL ₹{pnl:.2f} - {exit_reason}")
 
-    # 2. Naye Order Ke Liye Scan - Teeno Alag-Alag
     open_count = len([o for o in st.session_state["orders"] if o["status"]=="OPEN"])
     if open_count < max_open and is_market_open():
         for sym in ["NIFTY", "BANKNIFTY", "SENSEX"]:
@@ -260,7 +271,6 @@ if st.session_state["auto_on"]:
                 continue
             ltp = float(q.get("last_price", 0) or 0)
             open_p = float((q.get("ohlc", {}) or {}).get("open", ltp) or ltp)
-            # LTP Save Karo - Taaki Neeche Chain Me Sahi Dikhaye
             st.session_state["all_ltps"][sym] = ltp
             trade = decide_trade(sym, ltp, open_p)
             if trade is None:
@@ -286,7 +296,7 @@ if st.session_state["auto_on"]:
             st.session_state["orders"].append({
                 "symbol": sym, "strike": trade["strike"], "signal": trade["signal"],
                 "entry": trade["price"], "qty": qty, "target": tgt, "stoploss": sl,
-                "status": "OPEN", "time": datetime.now().strftime("%d-%m %H:%M"),
+                "status": "OPEN", "time": now_ist().strftime("%d-%m %H:%M"),
                 "pnl": 0.0, "delta": trade["delta"], "gamma": trade["gamma"], "theta": trade["theta"],
                 "reason": trade["reason"]
             })
@@ -298,11 +308,9 @@ if st.session_state["auto_on"]:
     time.sleep(refresh_sec)
     st.rerun()
 
-# ============ OPTION CHAIN - FIXED - NIFTY ME NIFTY, SENSEX ME SENSEX ============
+# ============ OPTION CHAIN - FIXED ============
 st.subheader("📊 Live Option Chain - Dekhne Ke Liye")
 tab = st.radio("Index Chuno - Alag-Alag Dikhayega", ["NIFTY", "BANKNIFTY", "SENSEX"], horizontal=True, label_visibility="collapsed")
-
-# Har Tab Ka Apna Button - Alag Key Se - Taaki Mix Na Ho
 if st.button(f"🔄 {tab} Ka Chain Dekho", key=f"chain_btn_{tab}", use_container_width=True):
     q = get_quote(INSTRUMENT_MAP[tab])
     if q is None:
@@ -319,12 +327,10 @@ if st.button(f"🔄 {tab} Ka Chain Dekho", key=f"chain_btn_{tab}", use_container
             ce, ce_d, ce_g, ce_t = greeks(ltp, strike, True)
             pe, pe_d, pe_g, pe_t = greeks(ltp, strike, False)
             chain.append({"strike": strike, "ce": ce, "pe": pe, "ce_d": ce_d, "pe_d": pe_d, "ce_t": ce_t, "pe_t": pe_t, "is_atm": i==0})
-        # FIX - Is Tab Ka Chain Isi Tab Me Save Hoga - Dusre Tab Me Nahi Jayega
         st.session_state["all_chains"][tab] = {"ltp": ltp, "move": move, "atm": atm, "tab": tab, "rows": chain}
         st.session_state["all_ltps"][tab] = ltp
         st.rerun()
 
-# FIX - Jo Tab Chuna Hai, Usi Ka Chain Dikhao - Dusre Ka Nahi
 ch = st.session_state["all_chains"].get(tab)
 if ch and ch.get("rows"):
     st.write(f"**{ch['tab']}** LTP: {ch['ltp']} | Move: {ch['move']:.2f}% | ATM: {ch['atm']} | Ye {ch['tab']} Ka Chain Hai - NIFTY Me NIFTY, SENSEX Me SENSEX")
@@ -336,11 +342,9 @@ if ch and ch.get("rows"):
 else:
     st.info(f"👆 Upar `{tab} Ka Chain Dekho` Dabao - {tab} Ka Live Chain Aayega - NIFTY Daboge Toh NIFTY, SENSEX Daboge Toh SENSEX")
 
-# ============ TEENO KA EK SAATH SUMMARY - UPAR SE DEKH SAKO ============
 st.markdown('<div class="card"><b>📈 Teeno Index Ek Saath - Live LTP</b></div>', unsafe_allow_html=True)
 sum1, sum2, sum3 = st.columns(3)
 for col, sym in zip([sum1, sum2, sum3], ["NIFTY", "BANKNIFTY", "SENSEX"]):
-    ltp_val = st.session_state["all_ltps"].get(sym, 0)
     ch_sym = st.session_state["all_chains"].get(sym)
     if ch_sym:
         col.metric(f"{sym}", f"{ch_sym['ltp']:.2f}", f"{ch_sym['move']:.2f}% ATM {ch_sym['atm']}")
@@ -396,4 +400,4 @@ if st.button("🔄 Sab Reset Karo - Balance 10000", use_container_width=True):
     st.session_state["all_ltps"] = {"NIFTY": 0, "BANKNIFTY": 0, "SENSEX": 0}
     st.rerun()
 
-st.caption("💡 PAPER Hai - Real Paisa Nahi Katega! VPS Pe Chalane Ke Liye Browser Khula Rakho!")
+st.caption("💡 PAPER Hai - Real Paisa Nahi Katega! VPS Pe Chalane Ke Liye Browser Khula Rakho! IST Time Fix Ho Gaya Hai!")
